@@ -1,14 +1,17 @@
 import { defineConfig } from '@playwright/test';
+import * as dotenv from 'dotenv';
+
+dotenv.config();
 
 export default defineConfig({
-  testDir: '.',
+  testDir: './tests',
   timeout: 30_000,
   expect: { timeout: 5_000 },
   fullyParallel: true,
   retries: 0,
   reporter: 'html',
   use: {
-    baseURL: 'https://demo.playwright.dev/todomvc/#/',
+    baseURL: process.env.DIDAXIS_URL,
     actionTimeout: 10_000,
     trace: 'on-first-retry',
   },
