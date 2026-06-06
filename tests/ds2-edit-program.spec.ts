@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../fixtures/cleanup.fixture';
 
 const PROGRAM_NAME = 'Web Development 2026';
 const PROGRAM_DESCRIPTION = 'Full-stack web development program for 2026 cohort.';
