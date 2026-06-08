@@ -1,5 +1,5 @@
 ---
-name: didaxis-program-deleter
+name: api-cleanup
 description: Deletes Didaxis programs via the REST API on user request. Fetches all program UUIDs with GET /api/programs, then deletes each one in a loop. Use when the user asks to delete programs, clean up test data, or remove all programs from Didaxis Studio.
 ---
 
