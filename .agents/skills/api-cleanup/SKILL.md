@@ -1,80 +1,32 @@
 ---
 name: api-cleanup
-description: Deletes Didaxis programs via the REST API on user request. Fetches all program UUIDs with GET /api/programs, then deletes each one in a loop. Use when the user asks to delete programs, clean up test data, or remove all programs from Didaxis Studio.
+description: Ensures Playwright tests clean up the data they create. Use whenever generating or reviewing tests that create programs (or any persistent records) in Didaxis, so test data does not accumulate. Apply this to every test that creates data — even if cleanup isn't explicitly requested.
 ---
 
-You are the Didaxis program cleanup specialist for the QA automation project.
+# API Cleanup for Test Data
 
-## Your Workflow
+Tests that create data must remove it. Leftover data slows the app and
+makes test runs unreliable. Every test that creates a program must track
+its UUID and delete it via the API afterwards.
 
-1. **Confirm deletion intent** — the user wants to remove programs from Didaxis Studio
-2. **Verify environment** — ensure `.env` contains:
-   - `DIDAXIS_URL` (e.g. `https://test.didaxis.studio`)
-   - `DIDAXIS_API_TOKEN` (Bearer token for the programs API)
-3. **Fetch all program UUIDs** — call `GET {DIDAXIS_URL}/api/programs` and read each `data[].id`
-4. **Delete in a loop** — for each UUID, call `DELETE {DIDAXIS_URL}/api/programs/<uuid>`
-5. **Run the TypeScript script** from the project root using `npx tsx`
-6. **Report results** — summarize how many programs were found, deleted, and failed
+## Steps
 
-## Commands
+1. Use the shared cleanup fixture in `fixtures/cleanup.fixture.ts`.
+   Import `test` from there, not from `@playwright/test`.
 
-Delete all programs (default — GET all IDs, then DELETE each):
+2. When a test creates a program, capture the program's UUID and call
+   `trackProgram(uuid)` immediately.
 
-```bash
-npx tsx .agents/skills/didaxis-program-deleter/scripts/delete-programs.ts
-```
+3. Do not write manual `afterAll` blocks for cleanup — the fixture
+   handles teardown for every test that uses it.
 
-Preview all targets without deleting:
+4. Cleanup uses the DELETE API, not the UI:
+   `DELETE /api/programs/<uuid>` with a Bearer token from
+   `process.env.DIDAXIS_API_TOKEN`.
 
-```bash
-npx tsx .agents/skills/didaxis-program-deleter/scripts/delete-programs.ts --all --dry-run
-```
+5. Never hardcode the token. Never delete data the test did not create.
 
-Delete specific program UUID(s) only:
+## Reference
 
-```bash
-npx tsx .agents/skills/didaxis-program-deleter/scripts/delete-programs.ts --id <PROGRAM_UUID>
-```
-
-## API Reference
-
-```http
-GET {DIDAXIS_URL}/api/programs
-Authorization: Bearer {DIDAXIS_API_TOKEN}
-```
-
-Response shape:
-
-```json
-{
-  "data": [
-    { "id": "<uuid>", "name": "Program name", "...": "..." }
-  ]
-}
-```
-
-```http
-DELETE {DIDAXIS_URL}/api/programs/<PROGRAM_UUID>
-Authorization: Bearer {DIDAXIS_API_TOKEN}
-```
-
-Successful delete response: `200` with `{"message":"Program deleted"}`
-
-## Result Template
-
-```
-**Scope:** [all programs | specific UUID(s)]
-**Found via GET:** [count]
-**Deleted:** [uuid list]
-**Failed:** [uuid + status + message, or "none"]
-```
-
-## Rules
-
-- Always run from the project root so `.env` resolves correctly
-- Default behavior is GET all programs, then DELETE every returned UUID in a loop
-- Prefer `--dry-run` first when the user did not explicitly confirm deletion
-- Do not delete programs unless the user asked for cleanup
-- If GET fails with `401`, verify `DIDAXIS_API_TOKEN` in `.env`
-- If DELETE fails with `404`, report that the program was already removed
-- Reuse `support/delete-program.ts` — do not duplicate API logic inline
+- Endpoint: DELETE https://didaxis.studio/api/programs/<uuid>
+- Auth: Authorization: Bearer ${DIDAXIS_API_TOKEN}

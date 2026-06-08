@@ -1,78 +1,111 @@
-import * as dotenv from 'dotenv';
+import dotenv from 'dotenv';
 
 dotenv.config();
 
-export interface Program {
+export type DidaxisProgram = {
   id: string;
   name: string;
-}
+};
 
-export interface DeleteResult {
+export type DeleteProgramResult = {
   id: string;
-  success: boolean;
-  status?: number;
-  message?: string;
-}
+  ok: boolean;
+  status: number;
+  message: string;
+};
 
-function getConfig() {
-  const baseUrl = process.env.DIDAXIS_URL;
+function getConfig(): { token: string; baseUrl: string } | null {
   const token = process.env.DIDAXIS_API_TOKEN;
-  if (!baseUrl) throw new Error('DIDAXIS_URL is not set in .env');
-  if (!token) throw new Error('DIDAXIS_API_TOKEN is not set in .env');
-  return { baseUrl: baseUrl.replace(/\/$/, ''), token };
+  const baseUrl = process.env.DIDAXIS_URL;
+
+  if (!token || !baseUrl) {
+    return null;
+  }
+
+  return { token, baseUrl };
 }
 
-function authHeaders(token: string): Record<string, string> {
-  return {
-    Authorization: `Bearer ${token}`,
-    Accept: 'application/json',
-  };
-}
+export async function getAllPrograms(): Promise<DidaxisProgram[]> {
+  const config = getConfig();
+  if (!config) {
+    throw new Error('DIDAXIS_API_TOKEN or DIDAXIS_URL is not set in .env');
+  }
 
-export async function fetchPrograms(): Promise<Program[]> {
-  const { baseUrl, token } = getConfig();
-  const response = await fetch(`${baseUrl}/api/programs`, {
-    headers: authHeaders(token),
+  const response = await fetch(`${config.baseUrl}/api/programs`, {
+    headers: {
+      Authorization: `Bearer ${config.token}`,
+    },
   });
 
   if (!response.ok) {
-    throw new Error(`GET /api/programs failed: ${response.status} ${response.statusText}`);
+    const body = await response.text();
+    throw new Error(`Failed to fetch programs: ${response.status} ${body}`);
   }
 
   const body = await response.json();
-  const items = body.data ?? body;
-  if (!Array.isArray(items)) return [];
+  const programs = body?.data;
 
-  return items.map((item: { id: string; name?: string }) => ({
-    id: item.id,
-    name: item.name ?? '',
-  }));
+  if (!Array.isArray(programs)) {
+    throw new Error('Unexpected GET /api/programs response shape');
+  }
+
+  return programs
+    .filter((program): program is DidaxisProgram => typeof program?.id === 'string')
+    .map((program) => ({
+      id: program.id,
+      name: typeof program.name === 'string' ? program.name : program.id,
+    }));
 }
 
-export async function findProgramIdByName(name: string): Promise<string | undefined> {
-  const programs = await fetchPrograms();
-  return programs.find((program) => program.name === name)?.id;
+export async function getAllProgramIds(): Promise<string[]> {
+  const programs = await getAllPrograms();
+  return programs.map((program) => program.id);
 }
 
-export async function deleteProgram(id: string): Promise<DeleteResult> {
-  const { baseUrl, token } = getConfig();
-  const response = await fetch(`${baseUrl}/api/programs/${id}`, {
+export async function deleteProgramById(id: string): Promise<DeleteProgramResult> {
+  const config = getConfig();
+  if (!config) {
+    return {
+      id,
+      ok: false,
+      status: 0,
+      message: 'DIDAXIS_API_TOKEN or DIDAXIS_URL is not set in .env',
+    };
+  }
+
+  const response = await fetch(`${config.baseUrl}/api/programs/${id}`, {
     method: 'DELETE',
-    headers: authHeaders(token),
+    headers: {
+      Authorization: `Bearer ${config.token}`,
+    },
   });
 
-  if (response.ok) {
-    return { id, success: true, status: response.status };
-  }
+  const body = await response.text();
 
-  const message = await response.text().catch(() => response.statusText);
-  return { id, success: false, status: response.status, message };
+  return {
+    id,
+    ok: response.ok,
+    status: response.status,
+    message: body,
+  };
 }
 
-export async function deletePrograms(ids: string[]): Promise<DeleteResult[]> {
-  const results: DeleteResult[] = [];
+export async function deleteProgramsByIds(ids: string[]): Promise<DeleteProgramResult[]> {
+  const results: DeleteProgramResult[] = [];
+
   for (const id of ids) {
-    results.push(await deleteProgram(id));
+    results.push(await deleteProgramById(id));
   }
+
   return results;
+}
+
+export async function deleteAllPrograms(): Promise<DeleteProgramResult[]> {
+  const programIds = await getAllProgramIds();
+
+  if (programIds.length === 0) {
+    return [];
+  }
+
+  return deleteProgramsByIds(programIds);
 }

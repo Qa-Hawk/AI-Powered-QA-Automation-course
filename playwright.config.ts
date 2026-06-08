@@ -5,6 +5,7 @@ dotenv.config();
 
 export default defineConfig({
   testDir: './tests',
+  globalTeardown: './support/global-teardown.ts',
   timeout: 30_000,
   expect: { timeout: 5_000 },
   fullyParallel: true,

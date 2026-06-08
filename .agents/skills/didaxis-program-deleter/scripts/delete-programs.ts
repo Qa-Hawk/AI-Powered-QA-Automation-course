@@ -1,101 +1,144 @@
+import dotenv from 'dotenv';
+import path from 'node:path';
 import {
-  deletePrograms,
-  fetchPrograms,
-  type DeleteResult,
-  type Program,
+  deleteProgramsByIds,
+  getAllPrograms,
 } from '../../../../support/delete-program';
+import { initTracker } from '../../../../support/program-tracker';
 
-interface CliOptions {
-  dryRun: boolean;
+dotenv.config({ path: path.join(process.cwd(), '.env') });
+
+type CliOptions = {
+  all: boolean;
   ids: string[];
-}
+  dryRun: boolean;
+};
 
 function parseArgs(argv: string[]): CliOptions {
-  const dryRun = argv.includes('--dry-run');
-  const ids: string[] = [];
+  const options: CliOptions = {
+    all: false,
+    ids: [],
+    dryRun: false,
+  };
 
-  for (let i = 0; i < argv.length; i++) {
+  for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
-    if (arg === '--id') {
-      const id = argv[++i];
-      if (!id || id.startsWith('--')) {
-        throw new Error('--id requires a program UUID');
-      }
-      ids.push(id);
-    } else if (arg === '--all' || arg === '--dry-run') {
+
+    if (arg === '--all') {
+      options.all = true;
       continue;
-    } else if (arg.startsWith('--')) {
-      throw new Error(`Unknown option: ${arg}`);
     }
-  }
 
-  return { dryRun, ids };
-}
-
-function printSummary(scope: string, found: number, programs: Program[]) {
-  console.log(`**Scope:** ${scope}`);
-  console.log(`**Found via GET:** ${found}`);
-
-  if (programs.length > 0) {
-    for (const program of programs) {
-      const label = program.name ? `${program.id} (${program.name})` : program.id;
-      console.log(`  - ${label}`);
+    if (arg === '--dry-run') {
+      options.dryRun = true;
+      continue;
     }
+
+    if (arg === '--id') {
+      const id = argv[i + 1];
+      if (!id) {
+        throw new Error('Missing value for --id');
+      }
+      options.ids.push(id);
+      i += 1;
+      continue;
+    }
+
+    throw new Error(`Unknown argument: ${arg}`);
   }
+
+  if (!options.all && options.ids.length === 0) {
+    options.all = true;
+  }
+
+  return options;
 }
 
-function printResults(deleted: DeleteResult[], failed: DeleteResult[]) {
-  if (deleted.length === 0) {
-    console.log('**Deleted:** none');
-  } else {
-    console.log(`**Deleted:** ${deleted.map((result) => result.id).join(', ')}`);
-  }
+function printUsage(): void {
+  console.log(`Usage:
+  npx tsx .agents/skills/didaxis-program-deleter/scripts/delete-programs.ts [options]
 
-  if (failed.length === 0) {
-    console.log('**Failed:** none');
-    return;
-  }
+Options:
+  --all              Fetch all program UUIDs via GET /api/programs, then delete each one
+  --id <uuid>        Delete a specific program UUID (repeatable)
+  --dry-run          Print targets without calling DELETE
 
-  for (const result of failed) {
-    const detail = [result.status, result.message].filter(Boolean).join(' ');
-    console.log(`**Failed:** ${result.id} ${detail}`.trim());
-  }
+Examples:
+  npx tsx .agents/skills/didaxis-program-deleter/scripts/delete-programs.ts
+  npx tsx .agents/skills/didaxis-program-deleter/scripts/delete-programs.ts --all --dry-run
+  npx tsx .agents/skills/didaxis-program-deleter/scripts/delete-programs.ts --id 3eb19aa5-6901-42ce-b510-0a8abcba513f`);
 }
 
-async function main() {
-  const { dryRun, ids } = parseArgs(process.argv.slice(2));
+function printResults(results: Awaited<ReturnType<typeof deleteProgramsByIds>>): void {
+  const deleted = results.filter((result) => result.ok);
+  const failed = results.filter((result) => !result.ok);
 
-  let scope: string;
-  let programs: Program[];
-
-  if (ids.length > 0) {
-    scope = 'specific UUID(s)';
-    programs = ids.map((id) => ({ id, name: '' }));
-  } else {
-    scope = 'all programs';
-    programs = await fetchPrograms();
+  console.log(`Deleted: ${deleted.length}`);
+  for (const result of deleted) {
+    console.log(`- ${result.id}`);
   }
-
-  printSummary(scope, programs.length, programs);
-
-  if (dryRun) {
-    console.log('**Dry run:** no programs deleted');
-    return;
-  }
-
-  const results = await deletePrograms(programs.map((program) => program.id));
-  const deleted = results.filter((result) => result.success);
-  const failed = results.filter((result) => !result.success);
-
-  printResults(deleted, failed);
 
   if (failed.length > 0) {
-    process.exit(1);
+    console.log(`Failed: ${failed.length}`);
+    for (const result of failed) {
+      console.warn(`- ${result.id}: ${result.status} ${result.message}`);
+    }
   }
+}
+
+async function main(): Promise<void> {
+  if (process.argv.includes('--help') || process.argv.includes('-h')) {
+    printUsage();
+    return;
+  }
+
+  const options = parseArgs(process.argv.slice(2));
+
+  if (options.all) {
+    const programs = await getAllPrograms();
+
+    if (programs.length === 0) {
+      console.log('No programs found via GET /api/programs.');
+      return;
+    }
+
+    console.log(`Target program(s): ${programs.length}`);
+    for (const program of programs) {
+      console.log(`- ${program.id} (${program.name})`);
+    }
+
+    if (options.dryRun) {
+      console.log('Dry run only. No programs were deleted.');
+      return;
+    }
+
+    const results = await deleteProgramsByIds(programs.map((program) => program.id));
+    printResults(results);
+    initTracker();
+    return;
+  }
+
+  if (options.ids.length === 0) {
+    console.log('No program UUIDs to delete.');
+    return;
+  }
+
+  console.log(`Target program(s): ${options.ids.length}`);
+  for (const id of options.ids) {
+    console.log(`- ${id}`);
+  }
+
+  if (options.dryRun) {
+    console.log('Dry run only. No programs were deleted.');
+    return;
+  }
+
+  const results = await deleteProgramsByIds(options.ids);
+  printResults(results);
 }
 
 main().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : String(error);
-  console.error(message);
-  process.exit(1);
+  console.error(error instanceof Error ? error.message : error);
+  printUsage();
+  process.exitCode = 1;
 });
