@@ -1,119 +1,112 @@
 import { test, expect } from '../fixtures/cleanup.fixture';
+import { LoginPage, ProgramsPage } from '../pages';
 
-test.beforeEach(async ({ page }) => {
-  await page.goto('/login');
-  await page.getByRole('textbox', { name: 'Email' }).fill(process.env.DIDAXIS_EMAIL!);
-  await page.getByRole('textbox', { name: 'Password' }).fill(process.env.DIDAXIS_PASSWORD!);
-  await page.getByRole('button', { name: 'Sign In' }).click();
-  await page.waitForURL((url) => !url.pathname.includes('/login'));
-});
+const DEFAULT_DESCRIPTION = 'Full-stack web development program';
 
 test('TC-001 — Program creation form is accessible from Programs page', async ({ page }) => {
-  await page.goto('/programs');
-  await page.getByRole('button', { name: '+ New Program' }).click();
+  const programs = new ProgramsPage(page);
 
-  const dialog = page.getByRole('dialog', { name: 'New Program' });
-  await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole('textbox', { name: 'Program Name' })).toBeVisible();
-  await expect(dialog.getByRole('textbox', { name: 'Description' })).toBeVisible();
-  await expect(dialog.getByRole('button', { name: 'Create' })).toBeVisible();
+  await programs.goto();
+  const dialog = await programs.openNewProgramDialog();
+
+  await expect(dialog.root).toBeVisible();
+  await expect(dialog.programNameInput).toBeVisible();
+  await expect(dialog.descriptionInput).toBeVisible();
+  await expect(dialog.createButton).toBeVisible();
 });
 
 test('TC-002 — Program is created successfully and appears in the program list', async ({ page }) => {
+  const programs = new ProgramsPage(page);
   const programName = `Web Development 2026 ${Date.now()}`;
 
-  await page.goto('/programs');
-  await page.getByRole('button', { name: '+ New Program' }).click();
+  await programs.goto();
+  const dialog = await programs.openNewProgramDialog();
 
-  const dialog = page.getByRole('dialog', { name: 'New Program' });
-  await expect(dialog).toBeVisible();
+  await expect(dialog.root).toBeVisible();
+  await dialog.fill(programName, DEFAULT_DESCRIPTION);
+  await dialog.create();
 
-  await dialog.getByRole('textbox', { name: 'Program Name' }).fill(programName);
-  await dialog.getByRole('textbox', { name: 'Description' }).fill('Full-stack web development program');
-  await dialog.getByRole('button', { name: 'Create' }).click();
-
-  await expect(dialog).toBeHidden();
-  await expect(page.getByText(programName)).toBeVisible();
+  await expect(dialog.root).toBeHidden();
+  await expect(programs.getProgramByName(programName)).toBeVisible();
 });
 
 test('TC-003 — Create button becomes enabled when Program Name is populated', async ({ page }) => {
-  await page.goto('/programs');
-  await page.getByRole('button', { name: '+ New Program' }).click();
+  const programs = new ProgramsPage(page);
 
-  const dialog = page.getByRole('dialog', { name: 'New Program' });
-  await expect(dialog).toBeVisible();
+  await programs.goto();
+  const dialog = await programs.openNewProgramDialog();
 
-  const createButton = dialog.getByRole('button', { name: 'Create' });
-  await expect(createButton).toBeDisabled();
+  await expect(dialog.root).toBeVisible();
+  await expect(dialog.createButton).toBeDisabled();
 
-  await dialog.getByRole('textbox', { name: 'Program Name' }).fill(`Web Development 2026 ${Date.now()}`);
+  await dialog.fillProgramName(`Web Development 2026 ${Date.now()}`);
 
-  await expect(createButton).toBeEnabled();
+  await expect(dialog.createButton).toBeEnabled();
 });
 
 test('TC-004 — Description supports typical punctuation and saves as entered', async ({ page }) => {
+  const programs = new ProgramsPage(page);
   const programName = `Web Development 2026 ${Date.now()}`;
   const description = 'Full-stack web development program (HTML/CSS/JS + APIs).';
 
-  await page.goto('/programs');
-  await page.getByRole('button', { name: '+ New Program' }).click();
+  await programs.goto();
+  const dialog = await programs.openNewProgramDialog();
 
-  const dialog = page.getByRole('dialog', { name: 'New Program' });
-  await expect(dialog).toBeVisible();
+  await expect(dialog.root).toBeVisible();
+  await dialog.fill(programName, description);
+  await dialog.create();
 
-  await dialog.getByRole('textbox', { name: 'Program Name' }).fill(programName);
-  await dialog.getByRole('textbox', { name: 'Description' }).fill(description);
-  await dialog.getByRole('button', { name: 'Create' }).click();
-
-  await expect(dialog).toBeHidden();
-  await expect(page.getByText(programName)).toBeVisible();
+  await expect(dialog.root).toBeHidden();
+  await expect(programs.getProgramByName(programName)).toBeVisible();
 });
 
 test('TC-005 — Create is disabled when Program Name is empty (blank)', async ({ page }) => {
-  await page.goto('/programs');
-  await page.getByRole('button', { name: '+ New Program' }).click();
+  const programs = new ProgramsPage(page);
 
-  const dialog = page.getByRole('dialog', { name: 'New Program' });
-  await expect(dialog).toBeVisible();
+  await programs.goto();
+  const dialog = await programs.openNewProgramDialog();
 
-  await expect(dialog.getByRole('textbox', { name: 'Program Name' })).toHaveValue('');
-  await expect(dialog.getByRole('button', { name: 'Create' })).toBeDisabled();
+  await expect(dialog.root).toBeVisible();
+  await expect(dialog.programNameInput).toHaveValue('');
+  await expect(dialog.createButton).toBeDisabled();
 });
 
 test('TC-006 — Create is disabled when Program Name contains only whitespace', async ({ page }) => {
-  await page.goto('/programs');
-  await page.getByRole('button', { name: '+ New Program' }).click();
+  const programs = new ProgramsPage(page);
 
-  const dialog = page.getByRole('dialog', { name: 'New Program' });
-  await expect(dialog).toBeVisible();
+  await programs.goto();
+  const dialog = await programs.openNewProgramDialog();
 
-  const nameField = dialog.getByRole('textbox', { name: 'Program Name' });
-  await nameField.fill('   ');
-  await nameField.blur();
+  await expect(dialog.root).toBeVisible();
+  await dialog.fillProgramName('   ');
+  await dialog.blurProgramName();
 
-  await expect(dialog.getByRole('button', { name: 'Create' })).toBeDisabled();
+  await expect(dialog.createButton).toBeDisabled();
 });
 
-test('TC-007 — Non-admin user cannot create a new program', async ({ page }) => {
-  await page.goto('/login');
-  await page.getByRole('textbox', { name: 'Email' }).fill(process.env.DIDAXIS_NONADMIN_EMAIL!);
-  await page.getByRole('textbox', { name: 'Password' }).fill(process.env.DIDAXIS_NONADMIN_PASSWORD!);
-  await page.getByRole('button', { name: 'Sign In' }).click();
-  await page.waitForURL((url) => !url.pathname.includes('/login'));
+test.describe('non-admin', () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
 
-  await page.goto('/programs');
+  test('TC-007 — Non-admin user cannot create a new program', async ({ page }) => {
+    const login = new LoginPage(page);
+    const programs = new ProgramsPage(page);
 
-  await expect(page.getByRole('button', { name: '+ New Program' })).toBeHidden();
+    await login.goto();
+    await login.login(process.env.DIDAXIS_NONADMIN_EMAIL!, process.env.DIDAXIS_NONADMIN_PASSWORD!);
+    await programs.goto();
+
+    await expect(programs.newProgramButton).toBeHidden();
+  });
 });
 
 test('TC-008 — Failed create does not close the modal or add the program (server error)', async ({ page }) => {
+  const programs = new ProgramsPage(page);
   const programName = `Web Development 2026 ${Date.now()}`;
 
-  await page.goto('/programs');
-  await page.getByRole('button', { name: '+ New Program' }).click();
+  await programs.goto();
+  const dialog = await programs.openNewProgramDialog();
 
-  const dialog = page.getByRole('dialog', { name: 'New Program' });
-  await expect(dialog).toBeVisible();
+  await expect(dialog.root).toBeVisible();
 
   await page.route('**/programs', (route) => {
     if (route.request().method() === 'POST') {
@@ -122,206 +115,175 @@ test('TC-008 — Failed create does not close the modal or add the program (serv
     return route.continue();
   });
 
-  await dialog.getByRole('textbox', { name: 'Program Name' }).fill(programName);
-  await dialog.getByRole('textbox', { name: 'Description' }).fill('Full-stack web development program');
-  await dialog.getByRole('button', { name: 'Create' }).click();
+  await dialog.fill(programName, DEFAULT_DESCRIPTION);
+  await dialog.create();
 
-  await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole('textbox', { name: 'Program Name' })).toHaveValue(programName);
-  await expect(dialog.getByRole('button', { name: 'Create' })).toBeVisible();
+  await expect(dialog.root).toBeVisible();
+  await expect(dialog.programNameInput).toHaveValue(programName);
+  await expect(dialog.createButton).toBeVisible();
 });
 
 test('TC-009 — Double-clicking Create does not create duplicate programs', async ({ page }) => {
+  const programs = new ProgramsPage(page);
   const programName = `Web Development 2026 ${Date.now()}`;
 
-  await page.goto('/programs');
-  await page.getByRole('button', { name: '+ New Program' }).click();
+  await programs.goto();
+  const dialog = await programs.openNewProgramDialog();
 
-  const dialog = page.getByRole('dialog', { name: 'New Program' });
-  await expect(dialog).toBeVisible();
+  await expect(dialog.root).toBeVisible();
+  await dialog.fill(programName, DEFAULT_DESCRIPTION);
+  await dialog.doubleClickCreate();
 
-  await dialog.getByRole('textbox', { name: 'Program Name' }).fill(programName);
-  await dialog.getByRole('textbox', { name: 'Description' }).fill('Full-stack web development program');
-
-  const createButton = dialog.getByRole('button', { name: 'Create' });
-  await createButton.dblclick();
-
-  await expect(dialog).toBeHidden();
-
-  const matches = page.getByText(programName, { exact: true });
-  await expect(matches).toHaveCount(1);
+  await expect(dialog.root).toBeHidden();
+  await expect(programs.getProgramByName(programName)).toHaveCount(1);
 });
 
 test('TC-010 — Program Name accepts common special characters safely', async ({ page }) => {
+  const programs = new ProgramsPage(page);
   const suffix = Date.now();
   const programName = `Web Development: Full-Stack (${suffix})`;
 
-  await page.goto('/programs');
-  await page.getByRole('button', { name: '+ New Program' }).click();
+  await programs.goto();
+  const dialog = await programs.openNewProgramDialog();
 
-  const dialog = page.getByRole('dialog', { name: 'New Program' });
-  await expect(dialog).toBeVisible();
+  await expect(dialog.root).toBeVisible();
+  await dialog.fill(programName, DEFAULT_DESCRIPTION);
+  await dialog.create();
 
-  await dialog.getByRole('textbox', { name: 'Program Name' }).fill(programName);
-  await dialog.getByRole('textbox', { name: 'Description' }).fill('Full-stack web development program');
-  await dialog.getByRole('button', { name: 'Create' }).click();
-
-  await expect(dialog).toBeHidden();
-  await expect(page.getByText(programName)).toBeVisible();
+  await expect(dialog.root).toBeHidden();
+  await expect(programs.getProgramByName(programName)).toBeVisible();
 });
 
 test('TC-011 — Program Name handles Unicode characters', async ({ page }) => {
+  const programs = new ProgramsPage(page);
   const programName = `Desarrollo Web ${Date.now()} — Avanzado`;
 
-  await page.goto('/programs');
-  await page.getByRole('button', { name: '+ New Program' }).click();
+  await programs.goto();
+  const dialog = await programs.openNewProgramDialog();
 
-  const dialog = page.getByRole('dialog', { name: 'New Program' });
-  await expect(dialog).toBeVisible();
+  await expect(dialog.root).toBeVisible();
+  await dialog.fill(programName, DEFAULT_DESCRIPTION);
+  await dialog.create();
 
-  await dialog.getByRole('textbox', { name: 'Program Name' }).fill(programName);
-  await dialog.getByRole('textbox', { name: 'Description' }).fill('Full-stack web development program');
-  await dialog.getByRole('button', { name: 'Create' }).click();
-
-  await expect(dialog).toBeHidden();
-  await expect(page.getByText(programName)).toBeVisible();
+  await expect(dialog.root).toBeHidden();
+  await expect(programs.getProgramByName(programName)).toBeVisible();
 });
 
 test('TC-012 — Program Name trims leading/trailing spaces', async ({ page }) => {
+  const programs = new ProgramsPage(page);
   const suffix = Date.now();
   const paddedName = `  Web Development ${suffix}  `;
   const trimmedName = `Web Development ${suffix}`;
 
-  await page.goto('/programs');
-  await page.getByRole('button', { name: '+ New Program' }).click();
+  await programs.goto();
+  const dialog = await programs.openNewProgramDialog();
 
-  const dialog = page.getByRole('dialog', { name: 'New Program' });
-  await expect(dialog).toBeVisible();
+  await expect(dialog.root).toBeVisible();
+  await dialog.fill(paddedName, DEFAULT_DESCRIPTION);
+  await dialog.create();
 
-  await dialog.getByRole('textbox', { name: 'Program Name' }).fill(paddedName);
-  await dialog.getByRole('textbox', { name: 'Description' }).fill('Full-stack web development program');
-  await dialog.getByRole('button', { name: 'Create' }).click();
-
-  await expect(dialog).toBeHidden();
-  await expect(page.getByText(trimmedName)).toBeVisible();
+  await expect(dialog.root).toBeHidden();
+  await expect(programs.getProgramByName(trimmedName)).toBeVisible();
 });
 
 test('TC-013 — Description can be empty and still allows creation (if optional)', async ({ page }) => {
+  const programs = new ProgramsPage(page);
   const programName = `Web Development 2026 ${Date.now()}`;
 
-  await page.goto('/programs');
-  await page.getByRole('button', { name: '+ New Program' }).click();
+  await programs.goto();
+  const dialog = await programs.openNewProgramDialog();
 
-  const dialog = page.getByRole('dialog', { name: 'New Program' });
-  await expect(dialog).toBeVisible();
+  await expect(dialog.root).toBeVisible();
+  await dialog.fillProgramName(programName);
+  await expect(dialog.descriptionInput).toHaveValue('');
+  await dialog.create();
 
-  await dialog.getByRole('textbox', { name: 'Program Name' }).fill(programName);
-  await expect(dialog.getByRole('textbox', { name: 'Description' })).toHaveValue('');
-  await dialog.getByRole('button', { name: 'Create' }).click();
-
-  await expect(dialog).toBeHidden();
-  await expect(page.getByText(programName)).toBeVisible();
+  await expect(dialog.root).toBeHidden();
+  await expect(programs.getProgramByName(programName)).toBeVisible();
 });
 
 test('TC-014 — Max-length: Program Name at maximum allowed length is accepted', async ({ page }) => {
+  const programs = new ProgramsPage(page);
   const suffix = ` ${Date.now()}`;
   const programName = 'A'.repeat(255 - suffix.length) + suffix;
 
-  await page.goto('/programs');
-  await page.getByRole('button', { name: '+ New Program' }).click();
+  await programs.goto();
+  const dialog = await programs.openNewProgramDialog();
 
-  const dialog = page.getByRole('dialog', { name: 'New Program' });
-  await expect(dialog).toBeVisible();
+  await expect(dialog.root).toBeVisible();
+  await dialog.fill(programName, DEFAULT_DESCRIPTION);
+  await dialog.create();
 
-  await dialog.getByRole('textbox', { name: 'Program Name' }).fill(programName);
-  await dialog.getByRole('textbox', { name: 'Description' }).fill('Full-stack web development program');
-  await dialog.getByRole('button', { name: 'Create' }).click();
-
-  await expect(dialog).toBeHidden();
-  await expect(page.getByText(programName)).toBeVisible();
+  await expect(dialog.root).toBeHidden();
+  await expect(programs.getProgramByName(programName)).toBeVisible();
 });
 
 test('TC-015 — Max-length: Program Name over maximum is blocked gracefully', async ({ page }) => {
+  const programs = new ProgramsPage(page);
   const overLimitName = 'A'.repeat(256);
 
-  await page.goto('/programs');
-  await page.getByRole('button', { name: '+ New Program' }).click();
+  await programs.goto();
+  const dialog = await programs.openNewProgramDialog();
 
-  const dialog = page.getByRole('dialog', { name: 'New Program' });
-  await expect(dialog).toBeVisible();
+  await expect(dialog.root).toBeVisible();
+  await dialog.fillProgramName(overLimitName);
 
-  const nameField = dialog.getByRole('textbox', { name: 'Program Name' });
-  await nameField.fill(overLimitName);
-
-  const fieldValue = await nameField.inputValue();
+  const fieldValue = await dialog.getProgramNameValue();
   const isInputTruncated = fieldValue.length <= 255;
-  const isCreateDisabled = await dialog.getByRole('button', { name: 'Create' }).isDisabled();
+  const isCreateDisabled = await dialog.isCreateDisabled();
 
   expect(isInputTruncated || isCreateDisabled).toBe(true);
 });
 
 test('TC-016 — Max-length: Description at maximum allowed length is accepted', async ({ page }) => {
+  const programs = new ProgramsPage(page);
   const programName = `Web Development 2026 ${Date.now()}`;
   const longDescription = 'B'.repeat(255);
 
-  await page.goto('/programs');
-  await page.getByRole('button', { name: '+ New Program' }).click();
+  await programs.goto();
+  const dialog = await programs.openNewProgramDialog();
 
-  const dialog = page.getByRole('dialog', { name: 'New Program' });
-  await expect(dialog).toBeVisible();
+  await expect(dialog.root).toBeVisible();
+  await dialog.fill(programName, longDescription);
+  await dialog.create();
 
-  await dialog.getByRole('textbox', { name: 'Program Name' }).fill(programName);
-  await dialog.getByRole('textbox', { name: 'Description' }).fill(longDescription);
-  await dialog.getByRole('button', { name: 'Create' }).click();
-
-  await expect(dialog).toBeHidden();
-  await expect(page.getByText(programName)).toBeVisible();
+  await expect(dialog.root).toBeHidden();
+  await expect(programs.getProgramByName(programName)).toBeVisible();
 });
 
 test('TC-017 — Duplicate name: creating an already-existing program name is handled correctly', async ({ page }) => {
+  const programs = new ProgramsPage(page);
   const programName = `Web Development 2026 ${Date.now()}`;
 
-  await page.goto('/programs');
-  await page.getByRole('button', { name: '+ New Program' }).click();
+  await programs.goto();
+  await programs.createProgram(programName, DEFAULT_DESCRIPTION);
+  await expect(programs.getProgramByName(programName)).toBeVisible();
 
-  const dialog = page.getByRole('dialog', { name: 'New Program' });
-  await expect(dialog).toBeVisible();
-
-  await dialog.getByRole('textbox', { name: 'Program Name' }).fill(programName);
-  await dialog.getByRole('textbox', { name: 'Description' }).fill('Full-stack web development program');
-  await dialog.getByRole('button', { name: 'Create' }).click();
-  await expect(dialog).toBeHidden();
-  await expect(page.getByText(programName)).toBeVisible();
-
-  await page.getByRole('button', { name: '+ New Program' }).click();
-  await expect(dialog).toBeVisible();
-
-  await dialog.getByRole('textbox', { name: 'Program Name' }).fill(programName);
-  await dialog.getByRole('textbox', { name: 'Description' }).fill('Full-stack web development program');
-  await dialog.getByRole('button', { name: 'Create' }).click();
+  const dialog = await programs.openNewProgramDialog();
+  await expect(dialog.root).toBeVisible();
+  await dialog.fill(programName, DEFAULT_DESCRIPTION);
+  await dialog.create();
 
   const duplicateBlocked = await dialog.isVisible();
   if (duplicateBlocked) {
-    await expect(dialog).toBeVisible();
+    await expect(dialog.root).toBeVisible();
   } else {
-    await expect(dialog).toBeHidden();
+    await expect(dialog.root).toBeHidden();
   }
 });
 
 test('TC-018 — Program list updates correctly after create (ordering/visibility)', async ({ page }) => {
+  const programs = new ProgramsPage(page);
   const programName = `Web Development 2026 ${Date.now()}`;
 
-  await page.goto('/programs');
-  await page.getByRole('button', { name: '+ New Program' }).click();
+  await programs.goto();
+  const dialog = await programs.openNewProgramDialog();
 
-  const dialog = page.getByRole('dialog', { name: 'New Program' });
-  await expect(dialog).toBeVisible();
+  await expect(dialog.root).toBeVisible();
+  await dialog.fill(programName, DEFAULT_DESCRIPTION);
+  await dialog.create();
 
-  await dialog.getByRole('textbox', { name: 'Program Name' }).fill(programName);
-  await dialog.getByRole('textbox', { name: 'Description' }).fill('Full-stack web development program');
-  await dialog.getByRole('button', { name: 'Create' }).click();
-
-  await expect(dialog).toBeHidden();
-  await expect(page.getByText(programName)).toBeVisible();
-  await expect(page.getByText(programName)).toBeInViewport();
+  await expect(dialog.root).toBeHidden();
+  await expect(programs.getProgramByName(programName)).toBeVisible();
+  await expect(programs.getProgramByName(programName)).toBeInViewport();
 });

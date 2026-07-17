@@ -1,5 +1,6 @@
 import { defineConfig } from '@playwright/test';
 import * as dotenv from 'dotenv';
+import { AUTH_FILE } from './support/auth.constants';
 
 dotenv.config();
 
@@ -18,8 +19,16 @@ export default defineConfig({
   },
   projects: [
     {
+      name: 'setup',
+      testMatch: /.*\.setup\.ts/,
+    },
+    {
       name: 'chromium',
-      use: { browserName: 'chromium' },
+      use: {
+        browserName: 'chromium',
+        storageState: AUTH_FILE,
+      },
+      dependencies: ['setup'],
     },
   ],
 });
