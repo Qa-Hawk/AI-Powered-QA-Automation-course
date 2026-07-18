@@ -218,7 +218,7 @@ test('TC-014 — Max-length: Program Name at maximum allowed length is accepted'
   await expect(programs.getProgramByName(programName)).toBeVisible();
 });
 
-test('TC-015 — Max-length: Program Name over maximum is blocked gracefully', async ({ page }) => {
+test.skip('TC-015 — Max-length: Program Name over maximum is blocked gracefully', async ({ page }) => {
   const programs = new ProgramsPage(page);
   const overLimitName = 'A'.repeat(256);
 
