@@ -5,3 +5,4 @@ playwright/.auth/
 .playwright-mcp/
 .env
 .test-artifacts/
+artifacts/
