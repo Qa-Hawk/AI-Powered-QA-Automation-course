@@ -156,8 +156,6 @@ test('TC-008 — System should not create a new program when editing', async ({ 
   await programs.goto();
   await programs.createProgram(name, PROGRAM_DESCRIPTION);
 
-  const programCountBefore = await programs.getRowCount();
-
   const dialog = await programs.openEditDialogFromRow(name);
 
   await expect(dialog.root).toBeVisible();
@@ -165,8 +163,8 @@ test('TC-008 — System should not create a new program when editing', async ({ 
   await dialog.save();
   await expect(dialog.root).toBeHidden();
 
-  const programCountAfter = await programs.getRowCount();
-  expect(programCountAfter).toBe(programCountBefore);
+  await expect(programs.getProgramByName(updatedName)).toHaveCount(1);
+  await expect(programs.getProgramByName(name)).toHaveCount(0);
 });
 
 test('TC-009 — Save failure shows error and does not update the list', async ({ page }) => {
@@ -236,7 +234,7 @@ test('TC-011 — Name max-length boundary is enforced', async ({ page }) => {
   await expect(dialog.root).toBeHidden();
 
   await programs.goto();
-  const editDialog = await programs.openEditDialogFromRow(maxLengthName.slice(0, 20));
+  const editDialog = await programs.openEditDialogFromRow(maxLengthName);
 
   await expect(editDialog.root).toBeVisible();
   await editDialog.fillProgramName('B'.repeat(300));

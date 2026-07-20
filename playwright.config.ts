@@ -1,34 +1,45 @@
 import { defineConfig } from '@playwright/test';
-import * as dotenv from 'dotenv';
+import dotenv from 'dotenv';
 import { AUTH_FILE } from './support/auth.constants';
 
 dotenv.config();
 
 export default defineConfig({
   testDir: './tests',
+  globalSetup: './support/global-setup.ts',
   globalTeardown: './support/global-teardown.ts',
-  timeout: 30_000,
-  expect: { timeout: 5_000 },
+  timeout: 30000,
   fullyParallel: true,
-  retries: 0,
-  reporter: 'html',
+  retries: process.env.CI ? 2 : 0,
+  reporter: [
+    ['./support/program-cleanup-reporter.ts'],
+    ['html', { open: 'never' }],
+  ],
   use: {
     baseURL: process.env.DIDAXIS_URL,
-    actionTimeout: 10_000,
+    headless: true,
+    screenshot: 'only-on-failure',
     trace: 'on-first-retry',
+    locale: 'en-CA',
+    timezoneId: 'America/Toronto',
   },
   projects: [
     {
       name: 'setup',
-      testMatch: /.*\.setup\.ts/,
+      testMatch: /auth\.setup\.ts/,
     },
     {
-      name: 'chromium',
+      name: 'didaxis',
+      testMatch: '**/ds*.spec.ts',
       use: {
-        browserName: 'chromium',
         storageState: AUTH_FILE,
       },
       dependencies: ['setup'],
+    },
+    {
+      name: 'todomvc',
+      testMatch: '**/*.spec.ts',
+      testIgnore: [/auth\.setup\.ts/, '**/ds*.spec.ts'],
     },
   ],
 });

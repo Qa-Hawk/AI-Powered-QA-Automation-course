@@ -41,7 +41,8 @@ export class ProgramsPage extends BasePage {
   }
 
   getProgramRow(name: string): Locator {
-    return this.page.getByRole('row', { name: new RegExp(name) });
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return this.page.getByRole('row', { name: new RegExp(escaped) });
   }
 
   getProgramByName(name: string): Locator {

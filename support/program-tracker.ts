@@ -13,7 +13,6 @@ export function initTracker(): void {
 }
 
 export function trackProgramId(id: string): void {
-  fs.mkdirSync(path.dirname(TRACKER_PATH), { recursive: true });
   fs.appendFileSync(TRACKER_PATH, `${id}\n`);
 }
 
