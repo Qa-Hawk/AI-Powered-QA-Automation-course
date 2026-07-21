@@ -102,10 +102,6 @@ export class ProgramsPage extends BasePage {
     return this.page.getByRole('row').count();
   }
 
-  async hasVisibleScriptElement(): Promise<boolean> {
-    return this.page.locator('script').isVisible().catch(() => false);
-  }
-
   async clickDelete(programName: string): Promise<void> {
     await this.getDeleteButton(programName).click();
   }

@@ -22,7 +22,7 @@ async function addAllGymItems(page) {
 }
 
 function todoItems(page) {
-  return page.locator('.todo-list li');
+  return page.getByTestId('todo-item');
 }
 
 test.beforeEach(async ({ page }) => {

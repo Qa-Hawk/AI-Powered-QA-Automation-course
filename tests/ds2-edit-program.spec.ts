@@ -135,16 +135,24 @@ test('TC-007 — Invalid input is not accepted (script injection attempt)', asyn
   const dialog = await programs.openEditDialogFromRow(name);
 
   await expect(dialog.root).toBeVisible();
+
+  let alertFired = false;
+  page.on('dialog', async (nativeDialog) => {
+    if (nativeDialog.type() === 'alert') {
+      alertFired = true;
+    }
+    await nativeDialog.dismiss();
+  });
+
   await dialog.fillProgramName(xssPayload);
   await dialog.save();
 
-  let alertFired = false;
-  page.on('dialog', () => { alertFired = true; });
-  await page.waitForTimeout(1000);
+  // Wait for save to settle — dialog closes when the name is stored as text
+  await expect(dialog.root).toBeHidden();
   expect(alertFired).toBe(false);
 
-  const isVisible = await programs.hasVisibleScriptElement();
-  expect(isVisible).toBe(false);
+  // Payload rendered as literal text (escaped), not executed as HTML/JS
+  await expect(page.getByText(xssPayload, { exact: true })).toBeVisible();
 });
 
 test('TC-008 — System should not create a new program when editing', async ({ page }) => {

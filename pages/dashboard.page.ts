@@ -15,15 +15,15 @@ export class DashboardPage extends BasePage {
   }
 
   get programsCard(): Locator {
-    return this.page.getByText('Manage academic programs').locator('..');
+    return this.page.getByText('Manage academic programs');
   }
 
   get calendarCard(): Locator {
-    return this.page.getByText('Schedule & drag-drop').locator('..');
+    return this.page.getByText('Schedule & drag-drop');
   }
 
   get validationCard(): Locator {
-    return this.page.getByText('Check for conflicts').locator('..');
+    return this.page.getByText('Check for conflicts');
   }
 
   get quickStartSection(): Locator {

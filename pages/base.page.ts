@@ -40,7 +40,7 @@ export class BasePage {
   }
 
   get userDisplayName(): Locator {
-    return this.page.locator('nav').getByRole('paragraph').first();
+    return this.page.getByRole('navigation').getByRole('paragraph').first();
   }
 
   async signOut(): Promise<void> {
