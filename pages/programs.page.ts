@@ -49,12 +49,17 @@ export class ProgramsPage extends BasePage {
     return this.page.getByText(name, { exact: true });
   }
 
+  getProgramDescription(description: string): Locator {
+    return this.page.getByText(description, { exact: true });
+  }
+
   getEditButton(programName: string): Locator {
     return this.page.getByRole('button', { name: new RegExp(`Edit ${programName}`, 'i') });
   }
 
   getDeleteButton(programName: string): Locator {
-    return this.page.getByRole('button', { name: new RegExp(`Delete ${programName}`, 'i') });
+    // exact: true so "Delete Web Dev 123" does not match "Delete Web Dev 123 Extra"
+    return this.page.getByRole('button', { name: `Delete ${programName}`, exact: true });
   }
 
   async openNewProgramDialog(): Promise<ProgramDialog> {
@@ -101,8 +106,21 @@ export class ProgramsPage extends BasePage {
     return this.page.locator('script').isVisible().catch(() => false);
   }
 
+  async clickDelete(programName: string): Promise<void> {
+    await this.getDeleteButton(programName).click();
+  }
+
+  async doubleClickDelete(programName: string): Promise<void> {
+    await this.getDeleteButton(programName).dblclick();
+  }
+
   async deleteProgram(programName: string): Promise<void> {
     this.page.once('dialog', (dialog) => dialog.accept());
+    await this.getDeleteButton(programName).click();
+  }
+
+  async cancelDeleteProgram(programName: string): Promise<void> {
+    this.page.once('dialog', (dialog) => dialog.dismiss());
     await this.getDeleteButton(programName).click();
   }
 }
