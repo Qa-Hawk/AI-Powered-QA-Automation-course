@@ -31,6 +31,26 @@ export class ProgramsPage extends BasePage {
     return this.page.getByText('Select a program to manage semesters');
   }
 
+  get semesterSectionSubtitle(): Locator {
+    return this.page.getByText('Semesters & scheduling config');
+  }
+
+  get addSemesterButton(): Locator {
+    return this.page.getByRole('button', { name: '+ Semester' });
+  }
+
+  get noSemestersMessage(): Locator {
+    return this.page.getByText('No semesters yet');
+  }
+
+  semesterPanelHeading(programName: string): Locator {
+    return this.page.getByRole('heading', { name: programName, level: 4 });
+  }
+
+  async selectProgramInList(programName: string): Promise<void> {
+    await this.getProgramRow(programName).click();
+  }
+
   async goto(): Promise<void> {
     await this.page.goto('/programs');
   }
