@@ -1,0 +1,43 @@
+{
+  "name": "DS backlog — generate tests",
+  "description": "Scheduled weekday run (21:25 America/New_York) and optional Jira webhook: process DS tickets In Progress without tests-generated — analyze, write Playwright specs, run tests, open PRs, label tickets. Max 5 tickets; never merge.",
+  "workflow": {
+    "triggers": [
+      {
+        "cron": {
+          "cron": "25 21 * * 1-5"
+        }
+      },
+      {
+        "webhook": {}
+      }
+    ],
+    "actions": [
+      {
+        "mcp": {
+          "server": {
+            "name": "atlassian"
+          }
+        }
+      },
+      {
+        "mcp": {
+          "server": {
+            "name": "github"
+          }
+        }
+      }
+    ],
+    "prompts": [
+      "Backlog mode QA orchestrator. Follow @.cursor/rules/qa-orchestrator.mdc (Backlog mode section).\n\nThe outer runner started this automation — you do not decide when to run.\n\n1. Query Jira: project = DS AND status = \"In Progress\" AND labels != tests-generated (ORDER BY rank ASC). If the queue is empty, reply with a one-line summary and stop.\n\n2. Process up to 5 tickets sequentially (one branch + one PR per ticket). For each ticket:\n   - Analyze: apply jira-ticket-analyzer; save to features/{KEY}.feature.md\n   - Delegate test-writer (playwright-conventions.mdc, pom-conventions, api-cleanup for data-creating tests)\n   - Run: npx playwright test (prefer scoping to new/changed specs)\n   - Red run: triage (ci-failure-triage) then route per orchestrator Heal on red — never merge repair PRs or file bugs without human approval\n\n3. Per ticket output: open a GitHub PR linked to the Jira ticket; add label tests-generated when the pipeline completes normally. If the same spec fails with the same error twice on that ticket, leave the PR open, do not add tests-generated, and continue to the next ticket if budget remains.\n\nNever merge PRs. Never transition, resolve, or close Jira issues.\n\nTools: Atlassian MCP (Jira query, labels), GitHub MCP (PRs), terminal (Playwright)."
+    ],
+    "gitConfig": {
+      "repo": "Qa-Hawk/AI-Powered-QA-Automation-course",
+      "branch": "main"
+    },
+    "agentOptions": {
+      "skipInstall": false
+    },
+    "memoryEnabled": true
+  }
+}

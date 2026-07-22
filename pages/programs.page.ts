@@ -49,6 +49,10 @@ export class ProgramsPage extends BasePage {
     return this.page.getByText(name, { exact: true });
   }
 
+  getProgramDescription(description: string): Locator {
+    return this.page.getByText(description, { exact: true });
+  }
+
   getEditButton(programName: string): Locator {
     return this.page.getByRole('button', { name: new RegExp(`Edit ${programName}`, 'i') });
   }
