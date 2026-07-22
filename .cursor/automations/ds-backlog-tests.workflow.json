@@ -1,0 +1,45 @@
+{
+  "name": "DS backlog — generate tests",
+  "description": "Weekday 21:25 America/New_York plus optional Jira webhook: drain DS tickets In Progress without tests-generated — analyze, write Playwright specs, run tests, open PRs, label tickets. Max 5 tickets per run; never merge.",
+  "repository": {
+    "url": "https://github.com/Qa-Hawk/AI-Powered-QA-Automation-course",
+    "owner": "Qa-Hawk",
+    "name": "AI-Powered-QA-Automation-course",
+    "branch": "main"
+  },
+  "tools": {
+    "openPullRequest": true,
+    "terminal": true,
+    "mcpServers": ["atlassian", "github"]
+  },
+  "setupNotes": {
+    "timezone": "Set schedule timezone to America/New_York in the Automations editor.",
+    "webhook": "After save, copy the webhook URL + API key and wire a Jira automation rule that POSTs when an issue moves to In Progress.",
+    "mcp": "Enable MCP servers atlassian and github on this automation. Terminal is available by default for npx playwright test.",
+    "neverMerge": true
+  },
+  "workflow": {
+    "triggers": [
+      {
+        "cron": {
+          "cron": "25 21 * * 1-5",
+          "timezone": "America/New_York"
+        }
+      },
+      {
+        "webhook": {}
+      }
+    ],
+    "actions": [],
+    "prompts": [
+      {
+        "prompt": "Backlog mode QA orchestrator. Follow @.cursor/rules/qa-orchestrator.mdc (Backlog mode section).\nThe outer runner started this automation — you do not decide when to run.\n1. Query Jira: project = DS AND status = \"In Progress\" AND labels != tests-generated (ORDER BY rank ASC). If the queue is empty, reply with a one-line summary and stop.\n2. Process up to 5 tickets sequentially (one branch + one PR per ticket). For each ticket:\n   - Analyze: apply jira-ticket-analyzer; save to features/{KEY}.feature.md\n   - Delegate test-writer (playwright-conventions.mdc, pom-conventions, api-cleanup for data-creating tests)\n   - Run: npx playwright test (prefer scoping to new/changed specs)\n   - Red run: triage (ci-failure-triage) then route per orchestrator Heal on red — never merge repair PRs or file bugs without human approval\n3. Per ticket output: open a GitHub PR linked to the Jira ticket; add label tests-generated when the pipeline completes normally. If the same spec fails with the same error twice on that ticket, leave the PR open, do not add tests-generated, and continue to the next ticket if budget remains.\nNever merge PRs. Never transition, resolve, or close Jira issues."
+      }
+    ],
+    "model": "",
+    "agentOptions": {
+      "skipInstall": false
+    },
+    "memoryEnabled": true
+  }
+}
