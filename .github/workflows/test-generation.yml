@@ -1,0 +1,88 @@
+name: Test generation (DS backlog)
+
+on:
+  schedule:
+    # Weekdays 06:00 UTC — adjust in repo settings if you need a different timezone
+    - cron: '0 6 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  generate:
+    name: Generate tests from Jira backlog
+    runs-on: ubuntu-latest
+    environment: dev1
+    timeout-minutes: 90
+
+    env:
+      DIDAXIS_URL: ${{ secrets.DIDAXIS_URL }}
+      DIDAXIS_EMAIL: ${{ secrets.DIDAXIS_EMAIL }}
+      DIDAXIS_PASSWORD: ${{ secrets.DIDAXIS_PASSWORD }}
+      DIDAXIS_API_TOKEN: ${{ secrets.DIDAXIS_API_TOKEN }}
+      DIDAXIS_NONADMIN_EMAIL: ${{ secrets.DIDAXIS_NONADMIN_EMAIL }}
+      DIDAXIS_NONADMIN_PASSWORD: ${{ secrets.DIDAXIS_NONADMIN_PASSWORD }}
+      CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+      ATLASSIAN_API_TOKEN: ${{ secrets.ATLASSIAN_API_TOKEN }}
+      GITHUB_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Cursor CLI
+        run: curl https://cursor.com/install -fsS | bash
+
+      - name: Add Cursor CLI to PATH
+        run: |
+          if [ -d "$HOME/.local/bin" ]; then
+            echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          elif [ -d "$HOME/.cursor/bin" ]; then
+            echo "$HOME/.cursor/bin" >> "$GITHUB_PATH"
+          else
+            echo "Cursor CLI install path not found" >&2
+            exit 1
+          fi
+
+      - name: Run backlog test-generation agent
+        run: |
+          agent -p --force --trust --output-format text "$(cat <<'EOF'
+          You are the QA orchestrator in Backlog mode. Follow .cursor/rules/qa-orchestrator.mdc (Backlog mode). The GitHub Actions outer runner started this job — do not self-schedule.
+
+          1. Query Jira: project = DS AND status = "In Progress" AND labels != tests-generated (ORDER BY rank ASC). If the queue is empty, exit with a one-line summary.
+
+          2. Process up to 5 tickets sequentially. For each ticket:
+             - Analyze (jira-ticket-analyzer); save plan to features/{KEY}.feature.md
+             - Write a conforming Playwright spec under tests/ plus POM updates (playwright-conventions.mdc, pom-conventions, api-cleanup)
+             - Run: npx playwright test (scope to new/changed specs when possible)
+             - On red: triage (ci-failure-triage) and route per qa-orchestrator Heal on red; never merge or file bugs without human approval
+
+          3. Per ticket: one branch and one PR linked to the Jira ticket; add label tests-generated when the pipeline completes normally. If the same spec fails with the same error twice on that ticket, leave the PR open, do not add tests-generated, and move to the next ticket if budget remains.
+
+          Never merge PRs. Never transition, resolve, or close Jira issues.
+          EOF
+          )"
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 30

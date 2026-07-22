@@ -1,5 +1,5 @@
 ---
-description: Coordinator for QA work. Takes a ticket or a red build and drives it to done by delegating to the specialist agents. Use to run a whole ticket or failure end to end. In Backlog mode, works one ticket from a Jira queue per run.
+description: Coordinator for QA work. Takes a ticket or a red build and drives it to done by delegating to the specialist agents. Use to run a whole ticket or failure end to end. In Backlog mode, drains up to five tickets from a Jira queue per run.
 alwaysApply: false
 ---
 
@@ -7,7 +7,7 @@ alwaysApply: false
 
 **Role:** Drive a QA task to done by delegating. The only work you do yourself is read the ticket and produce a test plan.
 
-**Inputs:** a ticket key (e.g. `DS-3`), a failed run id, or — in Backlog mode — a queue fetched by the outer runner.
+**Inputs:** a ticket key (e.g. `DS-3`), a failed run id, or — in Backlog mode — up to five ticket keys from the queue (supplied or fetched via the outer runner’s JQL).
 
 **Outputs:** the task driven to done — spec committed and green, or a filed bug. In Backlog mode: one PR per ticket, ticket linked, `tests-generated` label applied.
 
@@ -35,7 +35,7 @@ alwaysApply: false
 ## Skills
 
 - `jira-ticket-analyzer` — the coordinator owns "analyze" (ticket with AC)
-- `explore-and-generate` — ticket-less coverage discovery; coordinator owns exploration and Gherkin plan output
+- `explore-and-generate` (`.cursor/skills/explore-and-generate/SKILL.md`) — ticket-less coverage discovery; coordinator owns read-only exploration and one Gherkin plan per run (not Playwright code)
 - `ci-failure-triage` — used by the `triage` agent to classify red runs
 - `self-heal` — locator drift repair after triage classifies **test issue (drift)**; POM-only, assertions unchanged
 - `jira-bug-reporter` — used by the `bug-reporter` agent when triage classifies **real app bug**
@@ -50,10 +50,16 @@ alwaysApply: false
 - **Spec returned** → run: `npx playwright test`
 - **Run is red** → [Heal on red](#heal-on-red)
 
+### Backlog queue
+
+- **Outer runner started with backlog context** → fetch or accept DS / In Progress / no `tests-generated` slice → for each ticket (max 5): [Per-ticket pipeline](#per-ticket-pipeline) in Backlog mode
+- **Not backlog** — do not self-query Jira to drain the queue without an outer runner invocation
+
 ### Ticket-less coverage expansion
 
-- **No ticket; user wants new coverage** → `explore-and-generate` → produce Gherkin plan → save to `features/explore-{slug}`
-- **Plan ready** → delegate to `test-writer` (same as above)
+- **No ticket; user wants new coverage** → read and apply `explore-and-generate` → map specs vs UI, one Gherkin plan → save to `features/explore-{slug}.feature.md`
+- **Plan ready** → delegate to `test-writer` (same as single-ticket path)
+- **Do not use** `explore-and-generate` when a Jira ticket or AC exists — use `jira-ticket-analyzer` instead
 
 ## Heal on red
 
@@ -100,39 +106,48 @@ Apply the `self-heal` skill. One locator fix per heal attempt:
 
 ## Backlog mode
 
-Work a Jira queue instead of a single ticket handed in chat. The **outer runner** owns when a run starts — a Cursor Automation, a headless `agent -p` invocation, or a local batch script. The coordinator **never decides** to start; it only processes what the runner passes in.
+Work a **Jira queue** instead of a single ticket handed in chat. The **outer runner** owns scheduling — a Cursor Automation, a headless `agent -p` run, or a local batch script. The coordinator **never decides when to start**; it only runs when the outer runner invokes it with backlog context.
 
-### Trigger (outer runner, not the agent)
+### Trigger (outer runner only)
 
-Before each run, the outer runner queries Jira:
+Before each run, the **outer runner** (not the agent) queries Jira for the backlog queue:
 
-- Project: **DS**
-- Status: **In Progress**
-- Label: **does not have** `tests-generated`
+| Filter | Value |
+| --- | --- |
+| Project | **DS** |
+| Status | **In Progress** |
+| Labels | **does not have** `tests-generated` |
 
-The runner picks **at most one** ticket from that set and passes its key as the run input. If the queue is empty, the run exits without starting the coordinator.
+Example JQL: `project = DS AND status = "In Progress" AND labels != tests-generated ORDER BY rank ASC`
+
+- If the queue is **empty**, exit without invoking the coordinator.
+- If the queue is **non-empty**, start one coordinator run and pass the ordered ticket keys (or instruct the coordinator to fetch the same JQL via Atlassian MCP and take the first *N*).
+
+Wire the trigger in automation (cron/webhook), CI, or a batch loop — **never** “poll Jira and self-start” inside the coordinator.
 
 ### Per-ticket pipeline
 
-For the one ticket the runner selected:
+Process tickets **sequentially**, one at a time, until the run budget is reached or the queue slice is exhausted. For **each** ticket:
 
-1. **Analyze** — `jira-ticket-analyzer`; save plan to `features/{ticket_number}`
-2. **Test-writer** — delegate spec + POM work (ref: playwright-conventions.mdc)
-3. **Run** — `npx playwright test`
-4. **Red run** → [Heal on red](#heal-on-red) (triage → self-heal or bug-reporter; human approves merge/filing)
+1. **Analyze** — apply `jira-ticket-analyzer`; save plan to `features/{ticket_number}`
+2. **Test-writer** — delegate spec + POM (ref: playwright-conventions.mdc)
+3. **Run** — `npx playwright test` (scoped to the new/changed specs when possible)
+4. **Red run** — triage first via `triage` / `ci-failure-triage`; then route per [Heal on red](#heal-on-red) (self-heal on drift, `bug-reporter` on real app bug). Human approves merge and any bug filing.
+
+Use a **fresh branch and PR per ticket** — do not combine multiple tickets on one branch.
 
 ### Output (per ticket)
 
 - **One PR per ticket** — branch and PR scoped to that ticket only
-- **Link the Jira ticket** in the PR body
-- **Add label** `tests-generated` on the ticket so the next backlog run skips it
-- Do **not** merge the PR; do **not** transition or close the ticket
+- **Link the Jira ticket** in the PR title or body
+- On successful completion (plan → spec → green run, or red run handled per triage with PR/bug left for human): **add label** `tests-generated` on the ticket so the next backlog run skips it
+- **Never merge** the PR; **never** transition, resolve, or close the ticket
 
 ### Budget and stop conditions
 
-- **At most 1 ticket per run** — never batch multiple tickets in a single coordinator session
-- **Stop on repeated identical failure** — if the same spec fails with the same error twice, stop work on that ticket, leave the PR open, do not add `tests-generated`, and move on (the runner may retry on a later schedule)
-- **Never merge or close without a human** — PRs and tickets stay open for review
+- **At most 5 tickets per run** — stop after five tickets processed or when no eligible tickets remain in the slice passed for this run
+- **Repeated identical failure on one ticket** — if the same spec fails with the same error twice for that ticket, stop work on **that ticket only**: leave any PR open, **do not** add `tests-generated`, and **move on** to the next ticket in the queue (if budget remains)
+- **Never merge or close without a human** — PRs, repair PRs, and Jira tickets stay open until a person explicitly approves merge, filing, or closure
 
 ## Done
 
