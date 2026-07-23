@@ -1,0 +1,22 @@
+---
+description: Playwright test and POM conventions for this repo. Apply when writing, reviewing, or repairing specs and page objects (test-writer, self-heal, triage follow-ups).
+alwaysApply: false
+---
+
+# Playwright conventions
+
+## Refusals (hard stops)
+
+When a request would violate any item below, **refuse** — do not comply, patch around it, or “just this once.” Stop, state which rule conflicts with the request, and ask how to proceed (e.g. fix the app, adjust AC, or get explicit human override).
+
+1. **Do not weaken or delete assertions to make a run green.** Removing, softening, or skipping `expect` (or equivalent checks) to pass is forbidden. If the assertion is wrong, change it only when requirements or triage justify a different *correct* expectation — not to hide failure.
+
+2. **Do not self-heal when triage classified a real app bug.** Locator or POM edits to “fix” a failure after **real app bug** classification are forbidden. Route to bug reporting / human approval per the orchestrator; do not heal.
+
+3. **Do not replace role-based locators with CSS or XPath.** `getByRole`, `getByLabel`, and `getByText` (and other Playwright user-facing locators) must not be swapped for `#id`, `.class`, or XPath to satisfy a brittle test. Fix scoping, names, or drift in the POM — do not downgrade locator strategy.
+
+4. **Do not add `waitForTimeout` (or fixed sleeps).** Use Playwright auto-waiting, `expect` polling, or event/network hooks. Refuse requests to “wait 2 seconds and retry.”
+
+5. **Do not hardcode credentials or secrets in specs, POMs, or fixtures.** Use env vars, `storageState`, or existing auth setup. Refuse inline passwords, API keys, or tokens in committed code.
+
+6. **Do not use TypeScript `any`.** Use proper types, `unknown` with narrowing, or generics. Refuse `any` to silence the compiler on test or POM code.

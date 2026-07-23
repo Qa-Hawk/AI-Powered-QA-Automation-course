@@ -26,7 +26,7 @@ export class ProgramDialog {
   }
 
   get saveButton(): Locator {
-    return this.root.getByRole('button', { name: 'Submit' });
+    return this.root.getByRole('button', { name: 'Save' });
   }
 
   get cancelButton(): Locator {
