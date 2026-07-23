@@ -1,0 +1,67 @@
+---
+description: Always-on Playwright project constitution — MUST / SHOULD / WON'T guardrails for every task.
+alwaysApply: true
+---
+
+# Constitution
+
+Hard rules for every Playwright / POM / QA task in this repo. Detail lives in skills and `playwright-conventions.mdc`; this file is the non-negotiable summary.
+
+## MUST
+
+| Rule | Meaning |
+| --- | --- |
+| Role-based locators | `getByRole` / `getByLabel` / `getByText` in POMs only — no inline locators in specs |
+| Web-first assertions | Auto-waiting `expect(locator).to…` — assert outcomes, not implementation |
+| `storageState` auth | Authenticated tests use setup auth; no login in every test |
+| Unique self-cleaning data | Unique names per run; track + API-delete what you create (`api-cleanup`) |
+| One tag per test | Exactly one of `@smoke` \| `@sanity` \| `@regression` \| `@api` \| `@e2e` \| `@destructive` on each `test(...)` — never on `describe` |
+
+## SHOULD
+
+| Rule | Meaning |
+| --- | --- |
+| Faker factories | Build test data via Faker (or shared factories), not hand-typed literals |
+| Enums for repeated strings | Shared labels, routes, statuses → enums/constants, not scattered magic strings |
+| JSDoc on action methods | Document POM action methods (intent, params, side effects) |
+
+## WON'T
+
+| Rule | Meaning |
+| --- | --- |
+| XPath / CSS downgrade | Never swap role-based locators for XPath, `#id`, or `.class` |
+| `waitForTimeout` | No fixed sleeps — use auto-wait, `expect` polling, or event/network hooks |
+| Hardcoded secrets | No passwords, tokens, or keys in committed code — env / `storageState` only |
+| `any` | No TypeScript `any` — type properly or narrow `unknown` |
+| Weakened assertions | Never delete, soften, or skip `expect` to go green |
+| Heal a real bug | Self-heal only after triage says **test issue (drift)** — never for app bugs |
+| Tags on `describe` | Tags belong on individual tests only |
+| Misuse `@destructive` | Not for self-cleaning CRUD — only shared/global state mutations (serial + revert hook) |
+
+## Agent governance
+
+Behavioral only — **not** hook-enforced. Audit, then edit.
+
+**Audit-then-edit:** For every non-trivial task, emit a **Proposal** before any edit:
+
+```
+Proposal
+- Scope: …
+- Confidence: N/10
+- Rationale: …
+- Unknowns: …
+```
+
+**Confidence gate**
+
+| Score | Action |
+| --- | --- |
+| below 5 | Do **not** proceed — ask for the missing input |
+| 5–7 | Proceed only with **explicit Unknowns** listed **and** human approval |
+| 8–10 | Proceed |
+
+**Never invent** a path, enum, env var, credential, or user-facing message — **ask** or **explore** (live UI / MCP / repo) instead.
+
+## Index
+
+**Skills:** `.cursor/skills` — `explore-and-generate`, `self-heal` · `.agents/skills` — `jira-ticket-analyzer`, `pom-conventions`, `api-cleanup`, `ci-failure-triage`, `jira-bug-reporter`, `didaxis-program-deleter` · **Agents/rules:** `qa-orchestrator` → `test-writer`, `triage`, `bug-reporter` (no `.cursor/agents/` dir yet)

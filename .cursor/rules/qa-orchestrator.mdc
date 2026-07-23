@@ -94,7 +94,7 @@ Apply `self-heal` (`.cursor/skills/self-heal/SKILL.md`). One locator fix per hea
 
 **Hard stops:**
 
-- **Never heal an assertion** — no deleting, commenting out, or softening `expect()`. The `afterFileEdit` hook (`.cursor/hooks/block-weakened-tests.js`) blocks weakened `tests/**` edits; if green requires touching assertions, **stop and escalate**.
+- **Never heal an assertion** — no deleting, commenting out, or softening `expect()`. The `afterFileEdit` hook (`.cursor/hooks/block-wont-violations.js`, matcher `Write`) blocks WON'T violations in `tests/**` and `pages/**`; if green requires touching assertions, **stop and escalate**.
 - **Never heal a real app bug** — only when triage says drift; if behavior is wrong (not the selector), route to `bug-reporter`.
 - **Stop and escalate** if a heal **won't prove green** (still red after re-discovery + POM patch, same locator error persists, or a new failure looks like product regression).
 - **Never merge a repair** without a human — leave the PR open for explicit approval.

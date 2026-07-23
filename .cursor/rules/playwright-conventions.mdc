@@ -20,3 +20,68 @@ When a request would violate any item below, **refuse** — do not comply, patch
 5. **Do not hardcode credentials or secrets in specs, POMs, or fixtures.** Use env vars, `storageState`, or existing auth setup. Refuse inline passwords, API keys, or tokens in committed code.
 
 6. **Do not use TypeScript `any`.** Use proper types, `unknown` with narrowing, or generics. Refuse `any` to silence the compiler on test or POM code.
+
+## Tagging strategy
+
+Tag **each** `test(...)` with **exactly one** of:
+
+| Tag | Use for |
+| --- | --- |
+| `@smoke` | Critical path / build gate — smallest, fastest slice |
+| `@sanity` | Broader happy-path confidence after smoke |
+| `@regression` | Full functional coverage (default for most CRUD / UI cases) |
+| `@api` | API-only or API-primary checks |
+| `@e2e` | Multi-step flows across pages / roles |
+| `@destructive` | **Only** tests that mutate **shared/global** state (locale, roles, feature flags, org settings). Run serially (`npm run test:destructive` → `--workers=1`) |
+
+**Rules:**
+
+- Never put tags on `test.describe(...)`.
+- A test that creates records and cleans up **only its own data** keeps its importance tag (`@smoke` / `@sanity` / `@regression` / …) — it is **not** `@destructive`.
+- **Any** test that mutates shared/global state **must** register an `afterEach` or `afterAll` revert hook that restores the prior value (locale, role, flag, setting). No orphaned global side effects.
+- Prefer `test.describe.configure({ mode: 'serial' })` (or equivalent) around `@destructive` groups so reverts stay ordered.
+
+```ts
+test('TC-010 — Programs list loads', { tag: '@smoke' }, async ({ page }) => { /* … */ });
+
+// Shared-state mutation → @destructive + mandatory revert
+test.describe('locale', () => {
+  test.describe.configure({ mode: 'serial' });
+
+  test('TC-099 — switches org locale', { tag: '@destructive' }, async ({ page }) => {
+    // mutate shared locale…
+  });
+
+  test.afterEach(async ({ page }) => {
+    // revert locale to baseline
+  });
+});
+```
+
+## Test data
+
+| Kind | Where | Rule |
+| --- | --- | --- |
+| Happy-path / unique data | `test-data/factories/*.ts` | Faker factories — unique per call; never hand-type colliding names |
+| Curated invalid inputs | `test-data/*.invalid.ts` (static) | Explicit boundary / negative sets — not random |
+| Secrets & URLs | `process.env` | From `.env` / CI secrets — never literals in specs |
+| Repeated paths, labels, messages | `test-data/enums/*.ts` (or shared enums) | Import enums/constants — no scattered magic strings |
+
+Example factory (`test-data/factories/program.factory.ts`):
+
+```ts
+import { faker } from '@faker-js/faker';
+
+export type ProgramInput = { name: string; description: string };
+
+/** Unique program payload for happy-path create/edit flows. */
+export function buildProgram(overrides: Partial<ProgramInput> = {}): ProgramInput {
+  return {
+    name: `Program ${faker.commerce.department()} ${faker.string.alphanumeric(8)}`,
+    description: faker.lorem.sentence(),
+    ...overrides,
+  };
+}
+```
+
+Usage in a spec: `const program = buildProgram();` then fill/create and track UUID for API cleanup.
