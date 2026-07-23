@@ -29,15 +29,16 @@ alwaysApply: false
 
 - Atlassian MCP — read ticket, query backlog, add labels
 - GitHub MCP or `gh` — read runs, create PRs
+- Playwright MCP — live a11y re-discovery during self-heal (`browser_snapshot`)
 - Terminal — `npx playwright test`
-- Delegate to specialist agents (`test-writer`, `triage`, `bug-reporter`); apply `self-heal` skill on drift classification
+- Delegate to specialist agents (`test-writer`, `triage`, `bug-reporter`); apply `self-heal` skill only after triage classifies **test issue (drift)**
 
 ## Skills
 
 - `jira-ticket-analyzer` — the coordinator owns "analyze" (ticket with AC)
 - `explore-and-generate` (`.cursor/skills/explore-and-generate/SKILL.md`) — ticket-less coverage discovery; coordinator owns read-only exploration and one Gherkin plan per run (not Playwright code)
 - `ci-failure-triage` — used by the `triage` agent to classify red runs
-- `self-heal` — locator drift repair after triage classifies **test issue (drift)**; POM-only, assertions unchanged
+- `self-heal` (`.cursor/skills/self-heal/SKILL.md`) — **registered heal path** for locator drift after triage says **test issue (drift)**; re-discover via Playwright MCP, patch POM only, prove green with assertions unchanged, open repair PR linked to the run
 - `jira-bug-reporter` — used by the `bug-reporter` agent when triage classifies **real app bug**
 - `eval-report` — **mandatory before Done** when heal/generation occurred or report is stale; refreshes `eval-report.md`
 
@@ -63,7 +64,7 @@ alwaysApply: false
 
 ## Heal on red
 
-When a run is red — CI failure, local `npx playwright test`, or a spec returned red from test-writer — **always triage first**. Never heal or patch on instinct.
+When a run is red — CI failure, local `npx playwright test`, or a spec returned red from test-writer — **always delegate to triage to classify first**. Never heal or patch on instinct.
 
 ### 1. Triage (classify)
 
@@ -78,31 +79,31 @@ If triage **cannot classify** → stop and escalate to a human. Do not heal or f
 
 | Classification | Action |
 | --- | --- |
-| **Real app bug** | Delegate to `bug-reporter` (skill: `jira-bug-reporter`). File and link the bug to the story/run. **Never heal a bug.** |
-| **Test issue (drift)** | Apply `self-heal` — see below. |
+| **Test issue (drift)** | Apply the registered `self-heal` skill — see below. |
+| **Real app bug** | Delegate to `bug-reporter` (skill: `jira-bug-reporter`) to **file and link** the bug to the story/run. **Never heal a bug.** |
 | **Ambiguous** | Stop and escalate. Do not heal or file. |
 
 ### 3. Self-heal (drift only)
 
-Apply the `self-heal` skill. One locator fix per heal attempt:
+Apply `self-heal` (`.cursor/skills/self-heal/SKILL.md`). One locator fix per heal attempt:
 
-1. **Re-discover** — use browser/Playwright MCP against the live app (`DIDAXIS_URL`); `browser_snapshot` a11y tree to find the current role + accessible name (never guess from screenshots).
-2. **Patch the POM** — minimal diff in `pages/` only; never edit `tests/**/*.spec.ts` or weaken assertions.
-3. **Re-run** — `npx playwright test <failing-spec>` to prove green with **assertions unchanged**.
-4. **Open a repair PR** — branch `heal/<short-description>`, link the failed run id/URL, include locator diff and triage classification. **Do not merge** — a human approves every repair PR.
+1. **Re-discover** — via the **Playwright MCP** against the live app (`DIDAXIS_URL`); use `browser_snapshot` (a11y tree) for the current role + accessible name. Never guess from screenshots.
+2. **Patch the POM** — minimal diff in `pages/` only. Never edit `tests/**/*.spec.ts`.
+3. **Re-run** — `npx playwright test <failing-spec>` to **prove green with assertions unchanged**.
+4. **Open a repair PR** — branch `heal/<short-description>`, **linked to the failed run** (id/URL), with locator diff and triage classification.
 
-**Hard stops for heal:**
+**Hard stops:**
 
-- **Never heal an assertion** — no deleting, commenting out, or softening `expect()`. The `.cursor/hooks/guard-test-assertions` hook enforces this on test edits; if green requires touching assertions, **stop and escalate**.
-- **Never heal a real app bug** — triage must say drift; re-triage if behavior is wrong, not the selector.
-- **Stop and escalate** if a heal cannot prove green without assertion changes, the same locator error persists after re-discovery, or a new failure indicates product regression.
-- **Never merge a repair PR** without explicit human approval.
+- **Never heal an assertion** — no deleting, commenting out, or softening `expect()`. The `afterFileEdit` hook (`.cursor/hooks/block-wont-violations.js`, matcher `Write`) blocks WON'T violations in `tests/**` and `pages/**`; if green requires touching assertions, **stop and escalate**.
+- **Never heal a real app bug** — only when triage says drift; if behavior is wrong (not the selector), route to `bug-reporter`.
+- **Stop and escalate** if a heal **won't prove green** (still red after re-discovery + POM patch, same locator error persists, or a new failure looks like product regression).
+- **Never merge a repair** without a human — leave the PR open for explicit approval.
 
-### 4. Heal budget and stop conditions
+### 4. Heal budget
 
-- **At most 5 heals per red run** — each heal fixes one locator; count toward the budget even if re-run stays red.
-- After 5 heals or repeated identical failure on the same spec → stop, leave the repair PR open (if any), report what was tried, and escalate.
-- A human approves merge and any bug filing before either lands.
+- **At most 5 heals per run** — each attempt fixes one locator and counts even if the re-run stays red.
+- After 5 heals or repeated identical failure on the same spec → stop, leave any repair PR open, report what was tried, and escalate.
+- A human approves every repair merge and any bug filing before either lands.
 
 ## Backlog mode
 
